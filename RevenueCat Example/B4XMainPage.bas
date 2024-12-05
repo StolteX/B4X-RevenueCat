@@ -32,7 +32,7 @@ Private Sub B4XPage_Created (Root1 As B4XView)
 	
 	B4XPages.SetTitle(Me,"RevenueCat Example")
 	
-	PurchaseHelper.Initialize(Me,"PurchaseHelper","YourRevenueCatApiKey")
+	PurchaseHelper.Initialize(Me,"PurchaseHelper","YourRevenueCatApiKey") 'Add your RevenueCat API key
 	PurchaseHelper.ProductIndentififer = Array As String("all_access_1_month_lognote","all_access_1_year_lognote") 'The Product identifyer
 	
 	Wait For (PurchaseHelper.CheckPurchases) complete (Success As Boolean) 'Must be called at app start, as we check here whether the user has the Premium version
