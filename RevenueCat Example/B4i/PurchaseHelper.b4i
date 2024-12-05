@@ -1,19 +1,18 @@
-﻿Build1=Default,com.stoltex.revenuecat
+﻿Build1=Default,com.xxx.ios
 File1=frm_main.bil
 FileGroup1=Default Group
 Group=Default Group
 Library1=b4xpages
 Library2=icore
-Library3=ihttputils2
-Library4=ijson
-Library5=istore
-Library6=keyvaluestore
-Library7=idateutils
+Library3=iphone
+Library4=istore
+Library5=revenuecat
+Library6=xcustomlistview
+Library7=xui views
 Module1=|relative|..\B4XMainPage
-Module2=|relative|..\..\RevenueCat
 NumberOfFiles=1
 NumberOfLibraries=7
-NumberOfModules=2
+NumberOfModules=1
 Version=8.45
 @EndOfDesignText@
 'Code module
@@ -25,14 +24,15 @@ Version=8.45
 	#iPadOrientations: Portrait, LandscapeLeft, LandscapeRight, PortraitUpsideDown
 	#Target: iPhone, iPad
 	#ATSEnabled: True
-	#MinVersion: 8
-	#ProvisionFile: .mobileprovision
+	#MinVersion: 11
+	
+	#ProvisionFile: xxx.mobileprovision
 #End Region
 
 Sub Process_Globals
 	Public App As Application
 	Public NavControl As NavigationController
-
+	Public HasPremium As Boolean = False
 End Sub
 
 Private Sub Application_Start (Nav As NavigationController)

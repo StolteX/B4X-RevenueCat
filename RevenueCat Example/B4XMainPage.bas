@@ -14,12 +14,11 @@ Version=9.85
 Sub Class_Globals
 	Private Root As B4XView
 	Private xui As XUI
-	Private KeyValue As KeyValueStore
-	Private RevCat As RevenueCat
-	#If B4I
-	Private inAppPurchase As Store
-	#End If
-	Private m_HasPremium As Boolean = False
+	Private PurchaseHelper As RevenueCatPurchaseHelper
+	Private CustomListView1 As CustomListView
+	
+	Private B4XLoadingIndicator1 As B4XLoadingIndicator
+	Private xpnl_LoadingIndicator As B4XView
 End Sub
 
 Public Sub Initialize
@@ -33,94 +32,42 @@ Private Sub B4XPage_Created (Root1 As B4XView)
 	
 	B4XPages.SetTitle(Me,"RevenueCat Example")
 	
-	#If B4I
-	inAppPurchase.Initialize("inAppPurchase")
-	#End If
+	PurchaseHelper.Initialize(Me,"PurchaseHelper","YourRevenueCatApiKey")
+	PurchaseHelper.ProductIndentififer = Array As String("all_access_1_month_lognote","all_access_1_year_lognote") 'The Product identifyer
 	
-	KeyValue.Initialize(xui.DefaultFolder,"AppSettings") 'For saving relevant subscription data
-	Dim RevCatUserId As String = KeyValue.GetDefault("RevCatUserId",GUID) 'If no user guid is saved, then generate a new
-	KeyValue.Put("RevCatUserId",RevCatUserId)
-	RevCat.Initialize("RevenueCatAPIKey",RevCatUserId,Array As String("all_access_1_year","all_access_1_month"))
-	CheckPurchases
-
-End Sub
-
-Private Sub CheckPurchases As ResumableSub
-	If KeyValue.GetDefault("RevenueCat_SubscriptionExpiresDate","") = "" Or KeyValue.Get("RevenueCat_SubscriptionExpiresDate").As(Long) < DateTime.Now Then 'Get the saved subscription infos
-		
-		Wait For (RevCat.GetCustomer) complete (Subscription As RevenueCat_Subscription) 'Gets customer infos
-		
-		If Subscription.Error.Success And Subscription.ExpiresDate > DateTime.Now Then
-			KeyValue.Put("RevenueCat_SubscriptionExpiresDate",Subscription.ExpiresDate) 'Save the new expire date
-		End If
-		
-	End If
-
-	Log(DateUtils.TicksToString(KeyValue.Get("RevenueCat_SubscriptionExpiresDate").As(Long)))
-	m_HasPremium = KeyValue.Get("RevenueCat_SubscriptionExpiresDate").As(Long) > DateTime.Now 'If the expire date is greater than now then he have an active subsription
-	Log("Has Premium? "  & m_HasPremium)
-	Return True
-End Sub
-
-Private Sub xlbl_Purchase_Click
+	Wait For (PurchaseHelper.CheckPurchases) complete (Success As Boolean) 'Must be called at app start, as we check here whether the user has the Premium version
+	Log("Do I have a premium version? " & Success)
 	
-	Dim ProductIdentifier As String = "all_access_1_year"
+	Wait For (PurchaseHelper.GetProductsInformation(PurchaseHelper.ProductIndentififer)) complete (lstPurchases As List)
 	
-	inAppPurchase.RequestPayment(ProductIdentifier)
-	Wait For inAppPurchase_PurchaseCompleted (Success As Boolean, Product As Purchase)
-	
-	RevCat.GetCustomer
-	Wait For (RevCat.CreatePurchase(Product.ProductIdentifier,Product)) complete (Subscription As RevenueCat_Subscription)
-
-	If Subscription.Error.Success Then
-		KeyValue.Put("RevenueCat_SubscriptionExpiresDate",Subscription.ExpiresDate)
-	End If
-	
-	If Success Then
-		
-		Dim sf As Object = xui.MsgboxAsync("You are now ready to go","Your purchase was successful.")
-		Wait For (sf) Msgbox_Result (Result As Int)
-
-		'UnlockPremiumFunctions
-		'Sleep(0)
-		'B4XPages.ClosePage(Me)
-	Else
-		xui.MsgboxAsync("Purchase Failed","Purchase was cancelled.")
-	End If
-	
-End Sub
-
-Private Sub RestorePurchases
-	inAppPurchase.RestoreTransactions
-	Wait For inAppPurchase_TransactionsRestored (Success As Boolean)
-	If Success Then
-		Wait For (CheckPurchases) complete (Success As Boolean)
-	
-		If m_HasPremium = False And KeyValue.Get("RevenueCat_SubscriptionExpiresDate") <> "" Then
-			KeyValue.Put("RevenueCat_SubscriptionExpiresDate","") 'Reset
-			xui.MsgboxAsync("The Pro version has been canceled or not renewed, you are now using the basic version.","Pro Version expired")
-		Else if m_HasPremium Then
-			'UnlockPremiumFunctions
-			xui.MsgboxAsync("Recovery successful","Your purchases have been successfully restored")
-		Else
-			xui.MsgboxAsync("Purchase Failed","Purchase was cancelled.")
-		End If
-	Else
-		xui.MsgboxAsync("Restore failed","No purchases found to restore.")
-	End If
-End Sub
-
-'Generates a new GUID
-Public Sub GUID As String
-	Dim sb As StringBuilder
-	sb.Initialize
-	For Each stp As Int In Array(8, 4, 4, 4, 12)
-		If sb.Length > 0 Then sb.Append("-")
-		For n = 1 To stp
-			Dim c As Int = Rnd(0, 16)
-			If c < 10 Then c = c + 48 Else c = c + 55
-			sb.Append(Chr(c))
-		Next
+	For Each ProductInfo As ProductInformation In lstPurchases
+		'Log(ProductInfo.Tag)
+		'Log(ProductInfo.Description)	
+		CustomListView1.AddTextItem(ProductInfo.Title & " - " & ProductInfo.LocalizedPrice,ProductInfo.ProductIdentifier)	
 	Next
-	Return sb.ToString
+	
+	
+End Sub
+
+
+Private Sub CustomListView1_ItemClick (Index As Int, Value As Object)
+	
+	Dim sf As Object = xui.Msgbox2Async("Do you want to buy?", "Title", "Yes", "", "No", Null)
+	Wait For (sf) Msgbox_Result (Result As Int)
+	If Result = xui.DialogResponse_Positive Then
+		
+		xpnl_LoadingIndicator.Visible = True
+		B4XLoadingIndicator1.Show
+		
+		Wait For (PurchaseHelper.RequestPayment(Value)) Complete (Success As Boolean)
+		
+		xpnl_LoadingIndicator.Visible = False
+		B4XLoadingIndicator1.Hide
+		
+		If Success Then
+			'Unlock Premium Features
+		End If
+		
+	End If
+	
 End Sub

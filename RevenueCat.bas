@@ -4,6 +4,21 @@ ModulesStructureVersion=1
 Type=Class
 Version=8.45
 @EndOfDesignText@
+#If Documentation
+Updates
+V1.00
+	-Release
+V1.01 (nicht veröffentlicht)
+	-Improvements
+	-Remove is_restore from CreatePurchase
+		-The parameter is Deprecated
+	-Add class RevenueCatPurchaseHelper - Takes care of almost everything
+		-Saving and restoring user tokens
+		-Checking Purchasing status
+		-Restore
+		-Messageboxes
+#End IF
+
 Sub Class_Globals
 	
 	Type RevenueCat_Subscription(Error As RevenueCat_Error,ProductIdentifier As String,ExpiresDate As Long,OwnershipType As String,Store As String,isSandbox As Boolean,GracePeriodExpiresDate As Long,OriginalPurchaseDate As Long,BillingIssuesDetectedAt As Long,RefundedAt As Long,StoreTransactionId As String,UnsubscribeDetectedAt As Long,AutoResumeDate As Long,PurchaseDate As Long,PeriodType As String)
@@ -137,31 +152,54 @@ Public Sub CreatePurchase(ProductId As String,Product As Object) As ResumableSub
 	#if b4a
 	Dim req As String = ""
    Dim J As HttpJob
-'    J.Initialize("RegisterPurchaseRevenueCat", Me)
-'    Dim req As String = $"{
-'     "product_id": "${Sku}",
-'     "currency": "BRL",
-'     "is_restore": "false",
-'     "app_user_id": "${SharedCode.MeuPerfil.UIDFirebase}",
-'     "fetch_token": "${PurchaseToken}"
-'}"$
+	'    J.Initialize("RegisterPurchaseRevenueCat", Me)
+	'    Dim req As String = $"{
+	'     "product_id": "${Sku}",
+	'     "currency": "BRL",
+	'     "is_restore": "false",
+	'     "app_user_id": "${SharedCode.MeuPerfil.UIDFirebase}",
+	'     "fetch_token": "${PurchaseToken}"
+	'}"$
 #End If
 #if b4i
+
 	Dim J As HttpJob
 	J.Initialize("RegisterPurchaseRevenueCat", Me)
 	
-	Dim req As String = $"{
-     "product_id": "${ProductId}",
-     "is_restore": "false",
-     "app_user_id": "${m_AppUserId}",
-     "fetch_token": "${GetPurchaseToken(Product)}"
-}"$
-        
-	'     "price": ${price},
-	'"currency": "BRL",
-	Log(req)
+	Dim RequestMap As Map
+	RequestMap.Initialize
+	RequestMap.Put("product_id",ProductId)
+	RequestMap.Put("app_user_id",m_AppUserId)
+	RequestMap.Put("fetch_token",GetPurchaseToken(Product))
+	
+'	Try
+
+'	Dim ThisPurchase As Purchase = Product
+'	Dim PurchaseMap As Map
+'	PurchaseMap.Initialize
+'	If ThisPurchase.Tag Is Map Then
+'		PurchaseMap = ThisPurchase.Tag
+'	End If
+
+'		If PurchaseMap.ContainsKey(ThisPurchase.ProductIdentifier) Then
+'			Dim PriceCurrency() As String = GetPriceAndCurrencyISO3LetterCode(PurchaseMap.Get(ThisPurchase.ProductIdentifier).As(ProductInformation).LocalizedPrice)
+'			If PriceCurrency(0) > 0 And PriceCurrency(1) <> "" Then
+'				RequestMap.Put("price",PriceCurrency(0))
+'				RequestMap.Put("currency",PriceCurrency(1))
+'			End If
+'		End If
+'
+'	Catch
+'		Log(LastException)
+'	End Try
+
+	Dim jsonParser As JSONGenerator
+	jsonParser.Initialize(RequestMap)
+
+	'Log(jsonParser.ToPrettyString(2))
+	
 #End If
-	J.PostString("https://api.revenuecat.com/v1/receipts", req)
+	J.PostString("https://api.revenuecat.com/v1/receipts", jsonParser.ToString)
 	J.GetRequest.SetHeader("Authorization","Bearer " & m_API_KEY)
 	J.GetRequest.SetHeader("Accept","application/json")
 	#If RELEASE
@@ -238,6 +276,7 @@ Private Sub GetPurchaseToken(Product As Purchase) As String
 	End If
 	Return ""
 End Sub
+
 #End If
 
 'Public Sub ParseResult(Json As String,TargetIdentifyer As String)
@@ -281,3 +320,38 @@ Private Sub ParseUTCstring(utc As String) As Long
 	DateTime.DateFormat = df
 	Return res
 End Sub
+
+#If B4I
+Private Sub GetPriceAndCurrencyISO3LetterCode(LocalizedPrice As String) As String() 'Ignore
+	Try
+	
+		Dim b2() As Byte = LocalizedPrice.GetBytes("UTF8")
+		Dim iUesh As Int
+		For ii = 0 To b2.Length - 2
+			If b2(ii) = 0xc2 And b2(ii+1) = 0xa0 Then
+				iUesh = ii
+				Exit
+			End If
+		Next
+		Dim sPriceNum As String = LocalizedPrice.SubString2(0, iUesh)
+    
+		Dim sPrice3Cur As String '= "EUR"
+		Dim nativeMe As NativeObject = Me
+		sPrice3Cur = nativeMe.RunMethod("get3LetCur", Null).AsString
+'	LogColor(sPriceNum,0xff00ff00)
+'	LogColor(sPrice3Cur,0xff00ff00)
+		Return Array As String(sPriceNum.Replace(",","."), sPrice3Cur)
+	
+	Catch
+		Log(LastException)
+	End Try
+	Return Array As String(0,"")
+End Sub
+#End If
+
+#If OBJC
+- (NSString*) get3LetCur {
+   NSString *country3LetCur = [[NSLocale currentLocale] objectForKey: NSLocaleCurrencyCode];
+   return country3LetCur;
+}
+#end if
