@@ -30,7 +30,7 @@ Sub Class_Globals
 	Private m_PurchaseErrorDescription As String
 	Private m_PurchaseSuccessTitle As String
 	Private m_PurchaseSuccessDescription As String
-	
+
 End Sub
 
 'Initializes the object. You can add parameters to this method if needed.

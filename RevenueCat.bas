@@ -8,7 +8,7 @@ Version=8.45
 Updates
 V1.00
 	-Release
-V1.01 (nicht veröffentlicht)
+V1.01
 	-Improvements
 	-Remove is_restore from CreatePurchase
 		-The parameter is Deprecated
