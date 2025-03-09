@@ -17,6 +17,8 @@ V1.01
 		-Checking Purchasing status
 		-Restore
 		-Messageboxes
+V1.02
+	-BugFixes
 #End IF
 
 Sub Class_Globals
@@ -43,6 +45,7 @@ Public Sub GetCustomer As ResumableSub
 	Dim Error As RevenueCat_Error
 	Error.Initialize
 	
+	Dim ActiveSubscription As RevenueCat_Subscription
 	Dim Subscription As RevenueCat_Subscription
 	Subscription.Initialize
 	
@@ -82,49 +85,71 @@ Public Sub GetCustomer As ResumableSub
 		Dim js As JSONParser
 		js.Initialize(J.GetString)
 		Dim Map1 As Map = js.NextObject
-        
-		Dim subscriber As Map = Map1.Get("subscriber")
-        
-		If subscriber.Size>0 Then
-            
-			Dim subscriptions As Map = subscriber.Get("subscriptions")
-			If subscriptions.Size>0 Then
 
+		Dim subscriber As Map = Map1.Get("subscriber")
+
+		If subscriber.Size > 0 Then
+    
+			Dim subscriptions As Map = subscriber.Get("subscriptions")
+			If subscriptions.Size > 0 Then
+
+				Dim LatestExpiration As Long = 0 ' Zum Speichern des spätesten Ablaufdatums
+        
 				For Each Key As String In subscriptions.Keys
-					
+            
 					For Each ProductIdentifier As String In m_lst_ProductIdentifier
-						
+                
 						If Key = ProductIdentifier Then
-			
+
 							Dim SubscriptionMap As Map = subscriptions.Get(Key)
-			
-							Subscription.ProductIdentifier = Key
-							Subscription.ExpiresDate = ParseUTCstring(SubscriptionMap.Get("expires_date")) 'ParseDateTime(SubscriptionMap.Get("expires_date"))
-							Subscription.OwnershipType = SubscriptionMap.Get("ownership_type")
-							Subscription.Store = SubscriptionMap.Get("store")
-							Subscription.isSandbox = SubscriptionMap.Get("is_sandbox")
-							Subscription.GracePeriodExpiresDate = ParseUTCstring(SubscriptionMap.Get("grace_period_expires_date"))
-							Subscription.OriginalPurchaseDate = ParseUTCstring(SubscriptionMap.Get("original_purchase_date"))
-							Subscription.BillingIssuesDetectedAt = ParseUTCstring(SubscriptionMap.Get("billing_issues_detected_at"))
-							Subscription.RefundedAt = ParseUTCstring(SubscriptionMap.Get("refunded_at"))
-							Subscription.UnsubscribeDetectedAt = ParseUTCstring(SubscriptionMap.Get("unsubscribe_detected_at"))
-							Subscription.AutoResumeDate = ParseUTCstring(SubscriptionMap.Get("auto_resume_date"))
-							Subscription.PurchaseDate = ParseUTCstring(SubscriptionMap.Get("purchase_date"))
-							Subscription.StoreTransactionId = SubscriptionMap.Get("store_transaction_id")
-							Subscription.PeriodType = SubscriptionMap.Get("period_type")
-							If Subscription.ExpiresDate > DateTime.Now Then	Exit 'This subscription is active
-							
+                    
+							Dim ExpirationDate As Long = ParseUTCstring(SubscriptionMap.Get("expires_date"))
+                    
+							' Prüfen, ob das Abo noch aktiv ist
+							If ExpirationDate > DateTime.Now Then
+                        
+								' Falls dies das späteste Ablaufdatum ist, als aktives Abo speichern
+								If ExpirationDate > LatestExpiration Then
+									LatestExpiration = ExpirationDate
+                            
+									Subscription.ProductIdentifier = Key
+									Subscription.ExpiresDate = ExpirationDate
+									Subscription.OwnershipType = SubscriptionMap.Get("ownership_type")
+									Subscription.Store = SubscriptionMap.Get("store")
+									Subscription.isSandbox = SubscriptionMap.Get("is_sandbox")
+									Subscription.GracePeriodExpiresDate = ParseUTCstring(SubscriptionMap.Get("grace_period_expires_date"))
+									Subscription.OriginalPurchaseDate = ParseUTCstring(SubscriptionMap.Get("original_purchase_date"))
+									Subscription.BillingIssuesDetectedAt = ParseUTCstring(SubscriptionMap.Get("billing_issues_detected_at"))
+									Subscription.RefundedAt = ParseUTCstring(SubscriptionMap.Get("refunded_at"))
+									Subscription.UnsubscribeDetectedAt = ParseUTCstring(SubscriptionMap.Get("unsubscribe_detected_at"))
+									Subscription.AutoResumeDate = ParseUTCstring(SubscriptionMap.Get("auto_resume_date"))
+									Subscription.PurchaseDate = ParseUTCstring(SubscriptionMap.Get("purchase_date"))
+									Subscription.StoreTransactionId = SubscriptionMap.Get("store_transaction_id")
+									Subscription.PeriodType = SubscriptionMap.Get("period_type")
+                            
+									ActiveSubscription = Subscription
+								End If
+							End If
+
 						End If
-						
+                
 					Next
-					
+            
 				Next
-				
+        
+				' Falls ein aktives Abo gefunden wurde:
+				If ActiveSubscription.IsInitialized Then
+					'Log("Aktives Abo: " & ActiveSubscription.ProductIdentifier & " bis " & DateTime.Date(ActiveSubscription.ExpiresDate))
+				Else
+					'Log("Kein aktives Abo gefunden.")
+					ActiveSubscription.Initialize
+				End If
+
 			End If
 		Else
-			'no subscriptions
-            
+			'Log("Keine Abonnements gefunden.")
 		End If
+
 	Else
 		'no subscriptions
 		Log(J.ErrorMessage)
@@ -133,10 +158,112 @@ Public Sub GetCustomer As ResumableSub
         
 	j.Release
 
-	Subscription.Error = Error
-	Return Subscription
+	If ActiveSubscription.IsInitialized = False Then ActiveSubscription.Initialize
+
+	ActiveSubscription.Error = Error
+	Return ActiveSubscription
 
 End Sub
+
+'Public Sub GetCustomer2 As ResumableSub
+'	
+'	Dim Error As RevenueCat_Error
+'	Error.Initialize
+'	
+'	Dim Subscription As RevenueCat_Subscription
+'	Subscription.Initialize
+'	
+'	Dim J As HttpJob
+'	J.Initialize("CreateUserORGetUserInfo", Me)
+'	J.Download("https://api.revenuecat.com/v1/subscribers/" & m_AppUserId)
+'	'SharedCode.MeuPerfil.UIDFirebase is the user id that will be created at revenuecat to identify the user.
+'    
+'	J.GetRequest.SetHeader("Accept","application/json")
+'
+'	#If B4I
+'	J.GetRequest.SetHeader("X-Platform","ios")
+'	#Else If B4A
+'	J.GetRequest.SetHeader("X-Platform","android")
+'	#Else If B4J
+'	
+'	#End If
+'
+'	#If RELEASE
+'	J.GetRequest.SetHeader("X-Is-Sandbox",False)
+'	#Else
+'	J.GetRequest.SetHeader("X-Is-Sandbox",True)
+'	#End If
+'
+'	J.GetRequest.SetHeader("Content-Type","application/json")
+'	J.GetRequest.SetHeader("Authorization","Bearer " & m_API_KEY)
+'	'Main.ptrc    revenue cat key
+'    
+'    
+'	Wait For (J) JobDone(j As HttpJob)
+'    
+'	Error.Success = True
+'	
+'	If J.Success Then
+'		Log(J.GetString)
+'
+'		Dim js As JSONParser
+'		js.Initialize(J.GetString)
+'		Dim Map1 As Map = js.NextObject
+'        
+'		Dim subscriber As Map = Map1.Get("subscriber")
+'        
+'		If subscriber.Size>0 Then
+'            
+'			Dim subscriptions As Map = subscriber.Get("subscriptions")
+'			If subscriptions.Size>0 Then
+'
+'				For Each Key As String In subscriptions.Keys
+'					
+'					For Each ProductIdentifier As String In m_lst_ProductIdentifier
+'						
+'						If Key = ProductIdentifier Then
+'			
+'							Dim SubscriptionMap As Map = subscriptions.Get(Key)
+'			
+'							Subscription.ProductIdentifier = Key
+'							Subscription.ExpiresDate = ParseUTCstring(SubscriptionMap.Get("expires_date")) 'ParseDateTime(SubscriptionMap.Get("expires_date"))
+'							Subscription.OwnershipType = SubscriptionMap.Get("ownership_type")
+'							Subscription.Store = SubscriptionMap.Get("store")
+'							Subscription.isSandbox = SubscriptionMap.Get("is_sandbox")
+'							Subscription.GracePeriodExpiresDate = ParseUTCstring(SubscriptionMap.Get("grace_period_expires_date"))
+'							Subscription.OriginalPurchaseDate = ParseUTCstring(SubscriptionMap.Get("original_purchase_date"))
+'							Subscription.BillingIssuesDetectedAt = ParseUTCstring(SubscriptionMap.Get("billing_issues_detected_at"))
+'							Subscription.RefundedAt = ParseUTCstring(SubscriptionMap.Get("refunded_at"))
+'							Subscription.UnsubscribeDetectedAt = ParseUTCstring(SubscriptionMap.Get("unsubscribe_detected_at"))
+'							Subscription.AutoResumeDate = ParseUTCstring(SubscriptionMap.Get("auto_resume_date"))
+'							Subscription.PurchaseDate = ParseUTCstring(SubscriptionMap.Get("purchase_date"))
+'							Subscription.StoreTransactionId = SubscriptionMap.Get("store_transaction_id")
+'							Subscription.PeriodType = SubscriptionMap.Get("period_type")
+'							If Subscription.ExpiresDate > DateTime.Now Then	Exit 'This subscription is active
+'							
+'						End If
+'						
+'					Next
+'					
+'				Next
+'				
+'			End If
+'		Else
+'			'no subscriptions
+'            
+'		End If
+'	Else
+'		'no subscriptions
+'		Log(J.ErrorMessage)
+'		Error.ErrorMessage = J.ErrorMessage
+'	End If
+'        
+'	j.Release
+'
+'	Subscription.Error = Error
+'	Return Subscription
+'
+'End Sub
 
 'Records a purchase for a Customer from iOS, Android, or Stripe and will create a Customer if they don't already exist.
 'https://www.revenuecat.com/docs/api-v1#tag/transactions/operation/receipts
